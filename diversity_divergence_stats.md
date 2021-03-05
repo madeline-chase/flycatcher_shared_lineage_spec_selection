@@ -40,7 +40,7 @@ paste coll_freq.minDP5.maxDP200.RM.CM.minGQ.max_miss_10_perc.fem_het_rmvd.hard_f
 I then also took the sum of Dxy across all SNPs and then divided by the total number of callable sites in those two species.
 
 ```Bash
-awk '{sum+=$3}' END print '{sum/826836105}'
+awk '{sum+=$3}' END print '{sum/826836105}' coll_taig.RM.CM.minDP5.maxDP200.minGQ.fem_het_rmvd.max_miss_10_perc.snp_dxy.txt
 ```
 
 Finally, I used the same script, `calc_pi_dxy.py`, to estimate Dxy in windows by giving the snp dxy input, the scaffolds for which there are snp data, and the coordinates for the windows to calculate dxy.
