@@ -1,0 +1,79 @@
+// Initializing a model including neutral and deleterious mutations
+
+
+initialize() {
+	initializeTreeSeq(simplificationRatio=50);
+	
+	defineConstant("N", 10000);
+	
+	initializeMutationType("m1", 0.1, "f", -1/N); // Ns = -1 
+	initializeMutationType("m2", 0.1, "f", -10/N); // Ns = -10
+	initializeMutationType("m3", 0.1, "f", -100/N); // Ns = -100
+	initializeMutationType("m4", 0.1, "f", -500/N); // Ns = -500
+	
+	initializeGenomicElementType("g1", c(m1,m2,m3, m4), c(0.13,0.09,0.14,0.64)); // exon
+	initializeGenomicElementType("g4", c(m1,m2,m3, m4), c(0.13,0.09,0.14,0.64)); // CNE
+	
+	
+	// read recombination rate from file
+	lines = readFile("Rec.200kb.5kGap.chr11_scaffs.chrompos.bed");
+	rates = NULL;
+	ends = NULL;
+	
+	for (line in lines)
+	{
+		components = strsplit(line, "\t");
+		ends = c(ends, asInteger(components[2])-1);
+		rates = c(rates, asFloat(components[3]));
+	}
+
+	rates = rates*1e-7;
+	initializeRecombinationRate(rates, ends);
+	
+	// Read gene annotation from file
+	mut_rates = NULL;
+	mut_ends = NULL;
+	
+	gene_lines = readFile("fAlb15.introns_exons_intergenic.CNEs_included.ensemble_e73.chrom_pos.chrom11.sorted.bed");
+	for(gene_line in gene_lines)
+	{
+		gene_comps = strsplit(gene_line, "\t");
+		gene_start = asInteger(gene_comps[1]);
+		gene_stop = asInteger(gene_comps[2])-1;
+		gene_element = asString(gene_comps[3]);
+		if(gene_element == 'exonic')
+			{initializeGenomicElement(g1,gene_start,gene_stop);
+			mut_rates = c(mut_rates, 4.14e-9*10);
+			mut_ends = c(mut_ends, gene_stop);
+			}
+		else if(gene_element == 'intronic')
+			{mut_rates = c(mut_rates, 0);
+			mut_ends = c(mut_ends, gene_stop);}
+
+		else if(gene_element =='intergenic')
+			{mut_rates = c(mut_rates, 0);
+			mut_ends = c(mut_ends, gene_stop);}
+
+		else if(gene_element == 'CNE')
+			{mut_rates = c(mut_rates, 4.14e-9*10);
+			mut_ends = c(mut_ends, gene_stop);
+			initializeGenomicElement(g4, gene_start, gene_stop);}
+	}
+
+		initializeMutationRate(mut_rates, mut_ends);
+
+}
+
+// Add population
+1 { sim.addSubpop("p1", 10000); }
+
+
+50000 late() {
+	sim.treeSeqOutput("bgs_test_N10k_gen50k_neut_mut_rmvd_fixed_sel_sim" + asString(out) + ".trees");
+}
+100000 { sim.simulationFinished(); }
+
+
+100000 late() {
+	sim.treeSeqOutput("bgs_test_N10k_gen100k_neut_mut_rmvd_fixed_sel_sim" + asString(out) + ".trees");
+}

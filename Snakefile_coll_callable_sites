@@ -1,0 +1,124 @@
+configfile: "config.yaml"
+localrules: all, get_90_perc_callable_minDP, get_90_perc_callable_maxDP
+
+rule all:
+    input:
+        minDP = "/proj/sllstore2017033/nobackup/work/madeline/VC_ALL_SITES/callable_loci/gotland/depth_only/gotland.depth.q10.minDP5.mult_int.90_perc_callable.bed",
+        maxDP = "/proj/sllstore2017033/nobackup/work/madeline/VC_ALL_SITES/callable_loci/gotland/depth_only/gotland.depth.q10.minDP5.maxDP200.mult_int.90_perc_callable.bed"
+rule get_depth:
+    """Run samtools depth for each sample"""
+
+    input:
+        bam = "/proj/sllstore2017033/nobackup/b2016009_nobackup/data/bam/{sample}.md.raln.recal.bam"
+    output:
+        "/proj/sllstore2017033/nobackup/work/madeline/VC_ALL_SITES/callable_loci/gotland/depth_only/{sample}.depth.q10.txt"
+    shell:
+        """
+        module load bioinfo-tools samtools
+        samtools depth -q 10 -o {output} {input.bam}
+        """
+
+rule apply_min_dp:
+    """Remove bps with below the min depth threshold"""
+    input:
+        "/proj/sllstore2017033/nobackup/work/madeline/VC_ALL_SITES/callable_loci/gotland/depth_only/{sample}.depth.q10.txt"
+    output:
+        "/proj/sllstore2017033/nobackup/work/madeline/VC_ALL_SITES/callable_loci/gotland/depth_only/{sample}.depth.q10.minDP5.txt"
+    shell:
+        """
+        awk '!($3<5) {{print}}' {input} > {output}
+        """
+
+rule min_dp_to_bed:
+    """Convert min dp filt to bed format"""
+    input:
+        "/proj/sllstore2017033/nobackup/work/madeline/VC_ALL_SITES/callable_loci/gotland/depth_only/{sample}.depth.q10.minDP5.txt"
+    output:
+        "/proj/sllstore2017033/nobackup/work/madeline/VC_ALL_SITES/callable_loci/gotland/depth_only/{sample}.depth.q10.minDP5.bed"
+    shell:
+        """
+        awk -v OFS='\\t' '{{print $1, $2-1, $2}}' {input} > {output}
+        """
+
+
+rule apply_max_dp:
+    """Also remove bps with above a max depth threshold"""
+    input:
+        "/proj/sllstore2017033/nobackup/work/madeline/VC_ALL_SITES/callable_loci/gotland/depth_only/{sample}.depth.q10.minDP5.txt"
+    output:
+        "/proj/sllstore2017033/nobackup/work/madeline/VC_ALL_SITES/callable_loci/gotland/depth_only/{sample}.depth.q10.minDP5.maxDP200.bed"
+    shell:
+        """
+        awk -v OFS='\\t' '!($3>200) {{print $1, $2-1, $2}}' {input} > {output}
+        """
+
+
+rule merge_min_dp:
+    """Merge adjacent sites with min dp filt"""
+    input:
+        "/proj/sllstore2017033/nobackup/work/madeline/VC_ALL_SITES/callable_loci/gotland/depth_only/{sample}.depth.q10.minDP5.bed"
+    output:
+        "/proj/sllstore2017033/nobackup/work/madeline/VC_ALL_SITES/callable_loci/gotland/depth_only/{sample}.depth.q10.minDP5.merged.bed"
+    shell:
+        """
+        module load bioinfo-tools BEDTools
+        bedtools merge -i {input} > {output}
+        """
+
+rule merge_max_dp:
+    """Merge adjacent sites with max dp filt included"""
+    input:
+        "/proj/sllstore2017033/nobackup/work/madeline/VC_ALL_SITES/callable_loci/gotland/depth_only/{sample}.depth.q10.minDP5.maxDP200.bed"
+    output:
+        "/proj/sllstore2017033/nobackup/work/madeline/VC_ALL_SITES/callable_loci/gotland/depth_only/{sample}.depth.q10.minDP5.maxDP200.merged.bed"
+    shell:
+        """
+        module load bioinfo-tools BEDTools
+        bedtools merge -i {input} > {output}
+        """
+
+rule mult_intersect_bed_minDP:
+    """Get the intersect of the callable sites with min dp filt"""
+    input:
+        beds = expand("/proj/sllstore2017033/nobackup/work/madeline/VC_ALL_SITES/callable_loci/gotland/depth_only/{sample}.depth.q10.minDP5.merged.bed", sample = config["samples"])
+    output:
+        int_bed = "/proj/sllstore2017033/nobackup/work/madeline/VC_ALL_SITES/callable_loci/gotland/depth_only/gotland.depth.q10.minDP5.mult_int.bed"
+    shell:
+        """
+        module load bioinfo-tools BEDTools
+        multiIntersectBed -i {input.beds} > {output.int_bed}
+        """
+
+rule mult_intersect_bed_maxDP:
+    """Get the intersect of the callable sites with max dp filt"""
+    input:
+        beds = expand("/proj/sllstore2017033/nobackup/work/madeline/VC_ALL_SITES/callable_loci/gotland/depth_only/{sample}.depth.q10.minDP5.maxDP200.merged.bed", sample = config["samples"])
+    output:
+        int_bed = "/proj/sllstore2017033/nobackup/work/madeline/VC_ALL_SITES/callable_loci/gotland/depth_only/gotland.depth.q10.minDP5.maxDP200.mult_int.bed"
+    shell:
+        """
+        module load bioinfo-tools BEDTools
+        multiIntersectBed -i {input.beds} > {output.int_bed}
+        """
+
+rule get_90_perc_callable_minDP:
+    """Pull out the regions that are callable in at least 90 percent of individuals"""
+    input:
+        int_bed = "/proj/sllstore2017033/nobackup/work/madeline/VC_ALL_SITES/callable_loci/gotland/depth_only/gotland.depth.q10.minDP5.mult_int.bed"
+    output:
+        callable_bed = "/proj/sllstore2017033/nobackup/work/madeline/VC_ALL_SITES/callable_loci/gotland/depth_only/gotland.depth.q10.minDP5.mult_int.90_perc_callable.bed"
+    shell:
+        """
+        awk -v OFS='\\t' '{{if($4>=86) print $1,$2,$3}}' {input.int_bed} > {output.callable_bed}
+        """
+
+rule get_90_perc_callable_maxDP:
+    """Pull out the regions that are callable in at least 90 percent of individuals"""
+    input:
+        int_bed = "/proj/sllstore2017033/nobackup/work/madeline/VC_ALL_SITES/callable_loci/gotland/depth_only/gotland.depth.q10.minDP5.maxDP200.mult_int.bed"
+    output:
+        callable_bed = "/proj/sllstore2017033/nobackup/work/madeline/VC_ALL_SITES/callable_loci/gotland/depth_only/gotland.depth.q10.minDP5.maxDP200.mult_int.90_perc_callable.bed"
+    shell:
+        """
+        awk -v OFS='\\t' '{{if($4>=86) print $1,$2,$3}}' {input.int_bed} > {output.callable_bed}
+        """
